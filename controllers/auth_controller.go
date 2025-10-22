@@ -3,7 +3,6 @@ package controllers
 import (
 	"fmt"
 	"net/http"
-	"time"
 	"tracking-api/models"
 
 	"github.com/gin-gonic/gin"
@@ -22,7 +21,7 @@ func Register(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost) //menambahkan hashed pw
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Failed to hash password"})
 		return
@@ -43,7 +42,6 @@ func Register(c *gin.Context, db *gorm.DB) {
 		"user_id": fmt.Sprintf("%d", user.ID),
 		"email":   user.Email,
 		"role":    user.Role,
-		"exp":     time.Now().Add(72 * time.Hour).Unix(),
 	})
 
 	tokenString, err := token.SignedString(JwtKey)
@@ -86,7 +84,6 @@ func Login(c *gin.Context, db *gorm.DB) {
 		"user_id": fmt.Sprintf("%d", user.ID),
 		"email":   user.Email,
 		"role":    user.Role,
-		"exp":     time.Now().Add(72 * time.Hour).Unix(),
 	})
 
 	tokenString, err := token.SignedString(JwtKey)
@@ -132,7 +129,6 @@ func LoginAdmin(c *gin.Context, db *gorm.DB) {
 		"user_id": fmt.Sprintf("%d", user.ID),
 		"email":   user.Email,
 		"role":    user.Role,
-		"exp":     time.Now().Add(72 * time.Hour).Unix(),
 	})
 
 	tokenString, err := token.SignedString(JwtKey)

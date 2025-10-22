@@ -23,7 +23,15 @@ var upgrader = websocket.Upgrader{
 var clients = make(map[*websocket.Conn]bool)
 var clientsMutex sync.Mutex
 
-// Kirim pesan ke semua client yang terkoneksi
+type driverState struct {
+	FirstTerminal string
+	EnteredAt     time.Time
+	InPort        bool
+}
+
+var states = make(map[int]*driverState)
+var statesMutex sync.Mutex
+
 func broadcastLocation(msg models.LocationMessage) {
 	clientsMutex.Lock()
 	defer clientsMutex.Unlock()
@@ -38,7 +46,6 @@ func broadcastLocation(msg models.LocationMessage) {
 	}
 }
 
-// WebSocket utama
 func WSHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -68,45 +75,126 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		hasBooking, err := utils.HasActiveBooking(db, msg.UserID, msg.PortID, msg.Slot)
-		if err != nil {
-			log.Println("Booking check error:", err)
-			msg.BookingStatus = "strange"
-			msg.ArrivalStatus = "error_checking_arrival"
+		if msg.Slot == "" || msg.PortID == 0 {
+			msg.Alert = "Slot atau Port ID belum dikirim dari client"
+			msg.ArrivalStatus = "unknown"
 			broadcastLocation(msg)
 			continue
 		}
 
-		if !hasBooking {
-			msg.BookingStatus = "strange"
-			msg.ArrivalStatus = "-"
+		statesMutex.Lock()
+		if _, ok := states[msg.UserID]; !ok {
+			states[msg.UserID] = &driverState{}
+		}
+		ds := states[msg.UserID]
+		statesMutex.Unlock()
+
+		allGeofences, err := utils.GetAllGeofences(db)
+		if err != nil {
+			log.Println("Gagal ambil geofences dari DB:", err)
+			msg.Alert = "Tidak bisa memuat data geofence"
 			broadcastLocation(msg)
 			continue
 		}
+
+		var portGeofence *utils.Geofence
+		for _, g := range allGeofences {
+			if g.Name == "Pelabuhan Tanjung Priok" {
+				portGeofence = g
+				break
+			}
+		}
+
+		inPelabuhan := false
+		if portGeofence != nil {
+			inPelabuhan = utils.IsInsideGeofence(msg.Lat, msg.Lng, portGeofence)
+		}
+
+		if !inPelabuhan {
+			statesMutex.Lock()
+			states[msg.UserID] = &driverState{}
+			statesMutex.Unlock()
+
+			msg.Alert = "Driver berada di luar area pelabuhan"
+			msg.BookingStatus = ""
+			msg.ArrivalStatus = "outside_port"
+			msg.EnteredAt = time.Time{}
+			broadcastLocation(msg)
+			continue
+		}
+
+		statesMutex.Lock()
+		ds.InPort = true
+		statesMutex.Unlock()
+
+		var currentTerminal *utils.Geofence
+		for _, g := range allGeofences {
+			if g.Name == "Pelabuhan Tanjung Priok" {
+				continue
+			}
+			if utils.IsInsideGeofence(msg.Lat, msg.Lng, g) {
+				currentTerminal = g
+				break
+			}
+		}
+
+		if currentTerminal == nil {
+			msg.Alert = "Sudah memasuki area pelabuhan"
+			msg.BookingStatus = "fit"
+			msg.ArrivalStatus = "inside_port"
+			msg.EnteredAt = time.Time{}
+			broadcastLocation(msg)
+			continue
+		}
+
+		statesMutex.Lock()
+		if ds.FirstTerminal == "" || ds.FirstTerminal != currentTerminal.Name {
+			ds.FirstTerminal = currentTerminal.Name
+			ds.EnteredAt = time.Now()
+			log.Printf("Driver %d masuk ke terminal %s pada %v", msg.UserID, currentTerminal.Name, ds.EnteredAt)
+		}
+		entered := ds.EnteredAt
+		firstTerm := ds.FirstTerminal
+		statesMutex.Unlock()
+
+		dbGeofence, err := utils.GetGeofenceByPortAndSlot(db, msg.PortID, msg.Slot)
+		if err != nil {
+			log.Printf("Tidak bisa menemukan geofence port=%d slot=%s: %v", msg.PortID, msg.Slot, err)
+			msg.Alert = "Data geofence untuk slot ini tidak ditemukan"
+			msg.ArrivalStatus = "unknown"
+			msg.BookingStatus = "strange"
+			broadcastLocation(msg)
+			continue
+		}
+
+		status := utils.DetermineArrivalStatus(entered, dbGeofence.StartTime, dbGeofence.EndTime)
 
 		msg.BookingStatus = "fit"
+		msg.ArrivalStatus = status
+		msg.EnteredAt = entered
 
-		geofence, err := utils.GetGeofenceByPortAndSlot(db, msg.PortID, msg.Slot)
-		if err != nil {
-			msg.ArrivalStatus = "geofence_not_found"
-			broadcastLocation(msg)
-			continue
-		}
+		log.Printf(
+			"Driver %d | PortID= %d | Slot= %s | Terminal= %s | Arrival= %v | Start= %v | End= %v | Status= %s",
+			msg.UserID, msg.PortID, msg.Slot, firstTerm,
+			entered.Format("15:04:05"),
+			dbGeofence.StartTime.Format("15:04:05"),
+			dbGeofence.EndTime.Format("15:04:05"),
+			status,
+		)
 
-		if utils.IsInsideGeofence(msg.Lat, msg.Lng, geofence) {
-			arrivalTime := time.Now()
-			msg.ArrivalStatus = utils.DetermineArrivalStatus(arrivalTime, geofence.StartTime, geofence.EndTime)
+		if utils.CheckDurationAlert(entered) {
+			msg.Alert = fmt.Sprintf("Driver terlalu lama di %s (lebih dari 3 jam)", firstTerm)
 		} else {
-			msg.ArrivalStatus = "outside"
+			switch status {
+			case "early":
+				msg.Alert = fmt.Sprintf("Status: early (Deteksi pertama di terminal %s)", firstTerm)
+			case "late":
+				msg.Alert = fmt.Sprintf("Status: late (Deteksi pertama di terminal %s)", firstTerm)
+			default:
+				msg.Alert = fmt.Sprintf("Status: ontime (Deteksi pertama di terminal %s)", firstTerm)
+			}
 		}
 
-		log.Printf("Driver %s -> Booking: %s, Arrival: %s\n", msg.Email, msg.BookingStatus, msg.ArrivalStatus)
 		broadcastLocation(msg)
 	}
-
-	clientsMutex.Lock()
-	delete(clients, conn)
-	clientsMutex.Unlock()
-
-	log.Println("Client disconnected:", conn.RemoteAddr())
 }

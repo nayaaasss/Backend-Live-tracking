@@ -12,4 +12,8 @@ type Geofence struct {
 	Slot      string     `json:"slot"`
 	StartTime *time.Time `json:"start_time"`
 	EndTime   *time.Time `json:"end_time"`
+	LatMin    float64    `json:"lat_min"`
+	LatMax    float64    `json:"lat_max"`
+	LngMin    float64    `json:"lng_min"`
+	LngMax    float64    `json:"lng_max"`
 }
