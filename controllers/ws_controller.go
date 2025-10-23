@@ -78,6 +78,7 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 		if msg.Slot == "" || msg.PortID == 0 {
 			msg.Alert = "Slot atau Port ID belum dikirim dari client"
 			msg.ArrivalStatus = "unknown"
+			msg.BookingStatus = "strange"
 			broadcastLocation(msg)
 			continue
 		}
@@ -146,6 +147,48 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 			broadcastLocation(msg)
 			continue
 		}
+
+		var booking models.Booking
+		err = db.QueryRow(`
+			SELECT terminal_name
+			FROM bookings
+			WHERE user_id = $1 
+			ORDER BY created_at DESC
+			LIMIT 1`,
+			msg.UserID).Scan(&booking.TerminalName)
+
+		if err == sql.ErrNoRows {
+			msg.BookingStatus = "Strange"
+			msg.ArrivalStatus = "Unknown"
+			msg.Destination = "-"
+			msg.Alert = fmt.Sprintf("Status: strange (masuk ke %s tanpa booking)", currentTerminal.Name)
+			broadcastLocation(msg)
+			continue
+		} else if err != nil {
+			log.Println("Error cek Booking:", err)
+			msg.BookingStatus = "gagal memeriksa data"
+			msg.ArrivalStatus = "gagal memeriksa data"
+			msg.Destination = "gagal memeriksa data"
+			broadcastLocation(msg)
+			continue
+		}
+
+		msg.Destination = booking.TerminalName
+
+		if booking.TerminalName == currentTerminal.Name {
+			msg.BookingStatus = "fit"
+			msg.Alert = fmt.Sprintf("Status: fit (Booking dan tujuan sama, yaitu %s)", msg.CurrentTerminal)
+		} else {
+			msg.BookingStatus = "wrong destination"
+			msg.ArrivalStatus = "unknown"
+			msg.Alert = fmt.Sprintf("Status: wrong destination (Booking ke %s, tapi masuk %s)", booking.TerminalName, currentTerminal.Name)
+			broadcastLocation(msg)
+			continue
+		}
+
+		msg.Destination = booking.TerminalName
+		msg.CurrentTerminal = currentTerminal.Name
+		broadcastLocation(msg)
 
 		statesMutex.Lock()
 		if ds.FirstTerminal == "" || ds.FirstTerminal != currentTerminal.Name {
