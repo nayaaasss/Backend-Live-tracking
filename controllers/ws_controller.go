@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 	"tracking-api/models"
-	"tracking-api/utils"
+	"tracking-api/package/utils"
 
 	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"

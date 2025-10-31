@@ -1,0 +1,15 @@
+include:
+  - project: 'infracloud/utils'
+    ref: main
+    file: '/dmdc/ci/global/.gitlab-ci.yml'
+
+variables:
+  PROJECT: 'rnd'
+  PROJECT_LABEL: 'RND'
+  CONTAINER_REGISTRY: 'sin.ocir.io/ax4p6mavrtb1/dmdc/rnd'
+  IMAGE_NAME: 'geofencing-be'
+  HELMCHART: 'global'
+  SERVICE_PORT: '8080'
+  REPLICAS: '1'
+  PROD_REPLICAS: '3'
+  READINESS_PATH: '/'

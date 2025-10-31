@@ -10,6 +10,14 @@ import (
 )
 
 func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
+	// Health Check Endpoint
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "API is running",
+			"status":  "OK",
+		})
+	})
+
 	r.POST("/register", func(c *gin.Context) {
 		controllers.Register(c, db)
 	})
