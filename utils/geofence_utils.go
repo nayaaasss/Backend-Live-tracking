@@ -25,10 +25,11 @@ type Geofence struct {
 
 var geofences = []Geofence{
 	{Name: "Pelabuhan Tanjung Priok", Lat: -6.1045, Lng: 106.8804, Radius: 2000},
-	{Name: "TPK Koja", Lat: -6.1063942, Lng: 106.894286, Radius: 350},
+	{Name: "TPK Koja", Lat: -6.1062, Lng: 106.8778, Radius: 350},
 	{Name: "JICT", Lat: -6.1062, Lng: 106.8778, Radius: 350},
 	{Name: "NPCT1", Lat: -6.0917, Lng: 106.8854, Radius: 350},
 	{Name: "MAL", Lat: -6.1122, Lng: 106.8751, Radius: 350},
+	{Name: "TP 3", Lat: -6.1122, Lng: 106.8751, Radius: 350},
 }
 
 var Geofences = geofences
@@ -113,6 +114,8 @@ func CheckDurationAlert(enteredAt time.Time) bool {
 }
 
 func GetAllGeofences(db *sql.DB) ([]*Geofence, error) {
+	//frontend ada proses milih oport, port yg akan terbaca dan di filter by port.
+	//semua geofencs yg ada di area pelabuhan
 	query := `
 		SELECT id, name, lat, lng, radius, slot, start_time, end_time, port_id
 		FROM geofances

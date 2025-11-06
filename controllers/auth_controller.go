@@ -34,26 +34,17 @@ func Register(c *gin.Context, db *gorm.DB) {
 	}
 
 	if err := db.Create(&user).Error; err != nil {
-		c.JSON(500, gin.H{"error": "Failed to create user"})
-		return
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": fmt.Sprintf("%d", user.ID),
-		"email":   user.Email,
-		"role":    user.Role,
-	})
-
-	tokenString, err := token.SignedString(JwtKey)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate token"})
+		c.JSON(400, gin.H{"error": "User already exist"})
 		return
 	}
 
 	c.JSON(200, gin.H{
-		"message": "User registered",
-		"token":   tokenString,
-		"user":    user,
+		"message": "User registered successfully",
+		"user": gin.H{
+			"id":    user.ID,
+			"email": user.Email,
+			"role":  user.Role,
+		},
 	})
 }
 

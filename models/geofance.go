@@ -1,6 +1,8 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
 type Geofence struct {
 	ID        int        `json:"id" gorm:"primaryKey"`

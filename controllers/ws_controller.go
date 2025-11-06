@@ -60,7 +60,7 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Client connected:", conn.RemoteAddr())
 
-	db, err := sql.Open("postgres", "user=postgres password=kanayariany180208 dbname=tracking sslmode=disable")
+	db, err := sql.Open("postgres", "user=postgres password=152.69.222.199 dbname=postgres sslmode=disable")
 	if err != nil {
 		log.Println("DB connection error:", err)
 		return
@@ -106,6 +106,8 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		//kalau bisatidak di perlukan karna adanya filter dri utils by port
+
 		inPelabuhan := false
 		if portGeofence != nil {
 			inPelabuhan = utils.IsInsideGeofence(msg.Lat, msg.Lng, portGeofence)
@@ -128,40 +130,20 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 		ds.InPort = true
 		statesMutex.Unlock()
 
-		var currentTerminal *utils.Geofence
-		for _, g := range allGeofences {
-			if g.Name == "Pelabuhan Tanjung Priok" {
-				continue
-			}
-			if utils.IsInsideGeofence(msg.Lat, msg.Lng, g) {
-				currentTerminal = g
-				break
-			}
-		}
-
-		if currentTerminal == nil {
-			msg.Alert = "Sudah memasuki area pelabuhan"
-			msg.BookingStatus = "fit"
-			msg.ArrivalStatus = "inside_port"
-			msg.EnteredAt = time.Time{}
-			broadcastLocation(msg)
-			continue
-		}
-
 		var booking models.Booking
 		err = db.QueryRow(`
 			SELECT terminal_name
 			FROM bookings
-			WHERE user_id = $1 
+			WHERE user_id = $1
 			ORDER BY created_at DESC
 			LIMIT 1`,
 			msg.UserID).Scan(&booking.TerminalName)
 
 		if err == sql.ErrNoRows {
-			msg.BookingStatus = "Strange"
-			msg.ArrivalStatus = "Unknown"
+			msg.BookingStatus = "strange"
+			msg.ArrivalStatus = "unknown"
 			msg.Destination = "-"
-			msg.Alert = fmt.Sprintf("Status: strange (masuk ke %s tanpa booking)", currentTerminal.Name)
+			msg.Alert = "Masuk ke terminal tanpa booking"
 			broadcastLocation(msg)
 			continue
 		} else if err != nil {
@@ -173,11 +155,36 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		var currentTerminal *utils.Geofence
+		for _, g := range allGeofences {
+			if g.Name == "Pelabuhan Tanjung Priok" {
+				continue
+			}
+			if g.Name != booking.TerminalName {
+				continue
+			}
+			if utils.IsInsideGeofence(msg.Lat, msg.Lng, g) {
+				currentTerminal = g
+				break
+			}
+		}
+
+		if currentTerminal == nil {
+			msg.Alert = fmt.Sprintf("Sudah memasuki area pelabuhan, tapi bukan terminal booking (%s)", booking.TerminalName)
+			msg.BookingStatus = "wrong destination"
+			msg.ArrivalStatus = "inside_port"
+			msg.EnteredAt = time.Time{}
+			msg.Destination = booking.TerminalName
+			broadcastLocation(msg)
+			continue
+		}
+
+		msg.CurrentTerminal = currentTerminal.Name
 		msg.Destination = booking.TerminalName
 
 		if booking.TerminalName == currentTerminal.Name {
 			msg.BookingStatus = "fit"
-			msg.Alert = fmt.Sprintf("Status: fit (Booking dan tujuan sama, yaitu %s)", msg.CurrentTerminal)
+			msg.Alert = fmt.Sprintf("Status: fit (Booking dan tujuan sama, yaitu %s)", currentTerminal.Name)
 		} else {
 			msg.BookingStatus = "wrong destination"
 			msg.ArrivalStatus = "unknown"
@@ -185,10 +192,6 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 			broadcastLocation(msg)
 			continue
 		}
-
-		msg.Destination = booking.TerminalName
-		msg.CurrentTerminal = currentTerminal.Name
-		broadcastLocation(msg)
 
 		statesMutex.Lock()
 		if ds.FirstTerminal == "" || ds.FirstTerminal != currentTerminal.Name {
@@ -217,7 +220,7 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 		msg.EnteredAt = entered
 
 		log.Printf(
-			"Driver %d | PortID= %d | Slot= %s | Terminal= %s | Arrival= %v | Start= %v | End= %v | Status= %s",
+			"Driver %d | PortID=%d | Slot=%s | Terminal=%s | Arrival=%v | Start=%v | End=%v | Status=%s",
 			msg.UserID, msg.PortID, msg.Slot, firstTerm,
 			entered.Format("15:04:05"),
 			dbGeofence.StartTime.Format("15:04:05"),

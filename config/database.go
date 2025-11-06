@@ -12,14 +12,18 @@ import (
 var DB *gorm.DB
 
 func ConnectDB() (*gorm.DB, error) {
-	dsn := "host=localhost user=postgres password=kanayariany180208 dbname=tracking port=5432 sslmode=disable"
+	dsn := "host=152.69.222.199 user=postgres password=postgres@dmdc dbname=postgres port=5432 sslmode=disable"
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 		return nil, err
 	}
-
+	err = db.Exec("SET search_path TO geofencing;").Error
+	if err != nil {
+		log.Fatal("Gagal mengatur search_path:", err)
+	}
 	db.AutoMigrate(&models.User{}, &models.Driver{}, &models.Booking{})
+	fmt.Println("Using DSN:", dsn)
 
 	DB = db
 	fmt.Println("Database connected successfully")
