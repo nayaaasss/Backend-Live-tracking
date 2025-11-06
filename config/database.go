@@ -18,7 +18,10 @@ func ConnectDB() (*gorm.DB, error) {
 		log.Fatal("Failed to connect to database:", err)
 		return nil, err
 	}
-
+	err = db.Exec("SET search_path TO geofencing, public;").Error
+	if err != nil {
+		log.Fatal("Gagal mengatur search_path:", err)
+	}
 	db.AutoMigrate(&models.User{}, &models.Driver{}, &models.Booking{})
 
 	DB = db
