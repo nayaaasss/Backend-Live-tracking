@@ -60,7 +60,7 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Client connected:", conn.RemoteAddr())
 
-	db, err := sql.Open("postgres", "user=postgres password=kanayariany180208 dbname=tracking sslmode=disable")
+	db, err := sql.Open("postgres", "host=152.69.222.199 user=postgres password=postgres@dmdc dbname=postgres port=5432 sslmode=disable")
 	if err != nil {
 		log.Println("DB connection error:", err)
 		return
@@ -106,23 +106,23 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		inPelabuhan := false
-		if portGeofence != nil {
-			inPelabuhan = utils.IsInsideGeofence(msg.Lat, msg.Lng, portGeofence)
-		}
+		// inPelabuhan := false
+		// if portGeofence != nil {
+		// 	inPelabuhan = utils.IsInsideGeofence(msg.Lat, msg.Lng, portGeofence)
+		// }
 
-		if !inPelabuhan {
-			statesMutex.Lock()
-			states[msg.UserID] = &driverState{}
-			statesMutex.Unlock()
+		// if !inPelabuhan {
+		// 	statesMutex.Lock()
+		// 	states[msg.UserID] = &driverState{}
+		// 	statesMutex.Unlock()
 
-			msg.Alert = "Driver berada di luar area pelabuhan"
-			msg.BookingStatus = ""
-			msg.ArrivalStatus = "outside_port"
-			msg.EnteredAt = time.Time{}
-			broadcastLocation(msg)
-			continue
-		}
+		// 	msg.Alert = "Driver berada di luar area pelabuhan"
+		// 	msg.BookingStatus = ""
+		// 	msg.ArrivalStatus = "outside_port"
+		// 	msg.EnteredAt = time.Time{}
+		// 	broadcastLocation(msg)
+		// 	continue
+		// }
 
 		statesMutex.Lock()
 		ds.InPort = true

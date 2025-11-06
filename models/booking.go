@@ -17,4 +17,6 @@ type Booking struct {
 	ISOCode         string    `json:"iso_code"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
+	StartTime       time.Time `json:"start_time"`
+	EndTime         time.Time `json:"end_time"`
 }

@@ -3,7 +3,10 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"tracking-api/models"
+
+	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
@@ -17,12 +20,14 @@ var JwtKey = []byte("supersecretkey")
 func Register(c *gin.Context, db *gorm.DB) {
 	var input models.User
 	if err := c.ShouldBindJSON(&input); err != nil {
+		fmt.Println("Error terjadi:", err)
 		c.JSON(400, gin.H{"error": err.Error()})
 		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
+		fmt.Println("Error terjadi:", err)
 		c.JSON(500, gin.H{"error": "Failed to hash password"})
 		return
 	}
@@ -34,6 +39,7 @@ func Register(c *gin.Context, db *gorm.DB) {
 	}
 
 	if err := db.Create(&user).Error; err != nil {
+		fmt.Println("Error terjadi:", err)
 		c.JSON(500, gin.H{"error": "Failed to create user"})
 		return
 	}
@@ -46,6 +52,7 @@ func Register(c *gin.Context, db *gorm.DB) {
 
 	tokenString, err := token.SignedString(JwtKey)
 	if err != nil {
+		fmt.Println("Error terjadi:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate token"})
 		return
 	}
@@ -64,19 +71,23 @@ func Login(c *gin.Context, db *gorm.DB) {
 		Password string `json:"password"`
 	}
 	var user models.User
-
 	if err := c.ShouldBindJSON(&input); err != nil {
+		fmt.Println("Error terjadi:", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	log.Printf("User %s is %s years old.", input.Email, input.Password)
 	if err := db.Where("email = ?", input.Email).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		fmt.Println("Error terjadi:", err)
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
+	pass := strings.TrimSpace(input.Password)
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(pass)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		fmt.Println("Error terjadi:", err)
 		return
 	}
 
