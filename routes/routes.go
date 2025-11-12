@@ -10,6 +10,14 @@ import (
 )
 
 func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
+	// Health Check Endpoint
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "API is running",
+			"status":  "OK",
+		})
+	})
+
 	r.POST("/register", func(c *gin.Context) {
 		controllers.Register(c, db)
 	})
@@ -61,6 +69,10 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 
 		auth.GET("/geofence/socket", func(c *gin.Context) {
 			controllers.WSHandler(c.Writer, c.Request)
+		})
+
+		auth.POST("/location/update", func(c *gin.Context) {
+			controllers.UpdateDriverLocation(c)
 		})
 
 	}

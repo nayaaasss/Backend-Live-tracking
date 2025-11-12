@@ -11,6 +11,14 @@ import (
 
 var DB *gorm.DB
 
+// 1. Definisikan variabel GLOBAL untuk menyimpan DSN
+const databaseDSN = "host=152.69.222.199 user=postgres password=postgres@dmdc dbname=postgres port=5432 sslmode=disable"
+
+// 2. Fungsi untuk mendapatkan DSN (agar bisa dipanggil dari luar package)
+func GetDSN() string {
+	return databaseDSN
+}
+
 func ConnectDB() (*gorm.DB, error) {
 	dsn := "host=152.69.222.199 user=postgres password=postgres@dmdc dbname=postgres port=5432 sslmode=disable"
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})

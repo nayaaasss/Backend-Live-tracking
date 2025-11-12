@@ -85,25 +85,13 @@ func IsInsideGeofence(driverLat, driverLng float64, geofence *Geofence) bool {
 	return CalculateDistance(driverLat, driverLng, geofence.Lat, geofence.Lng) <= geofence.Radius
 }
 
-func DetermineArrivalStatus(arrivalTime, start, end time.Time) string {
-	arrival := time.Date(2000, 1, 1, arrivalTime.Hour(), arrivalTime.Minute(), 0, 0, time.Local)
-	startAt := time.Date(2000, 1, 1, start.Hour(), start.Minute(), 0, 0, time.Local)
-	endAt := time.Date(2000, 1, 1, end.Hour(), end.Minute(), 0, 0, time.Local)
-
-	if endAt.Before(startAt) {
-		endAt = endAt.Add(24 * time.Hour)
-		if arrival.Before(startAt) {
-			arrival = arrival.Add(24 * time.Hour)
-		}
-	}
-
-	if arrival.Before(startAt) {
+func DetermineArrivalStatus(arrival, gateIn, gateOut time.Time) string {
+	if arrival.Before(gateIn) {
 		return "early"
-	} else if arrival.After(endAt) {
+	} else if arrival.After(gateOut) {
 		return "late"
-	} else {
-		return "ontime"
 	}
+	return "ontime"
 }
 
 func CheckDurationAlert(enteredAt time.Time) bool {
@@ -138,4 +126,14 @@ func GetAllGeofences(db *sql.DB) ([]*Geofence, error) {
 		return nil, errors.New("no geofences found")
 	}
 	return results, nil
+}
+
+func ValidateGeofence(lat, lng float64) (*Geofence, bool) {
+	for _, g := range geofences {
+		distance := CalculateDistance(lat, lng, g.Lat, g.Lng)
+		if distance <= g.Radius {
+			return &g, true
+		}
+	}
+	return nil, false
 }

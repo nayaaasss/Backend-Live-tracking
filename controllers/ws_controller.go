@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"tracking-api/config"
 	"tracking-api/models"
-	"tracking-api/utils"
+	"tracking-api/package/utils"
 
 	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
@@ -32,14 +33,14 @@ type driverState struct {
 var states = make(map[int]*driverState)
 var statesMutex sync.Mutex
 
-func broadcastLocation(msg models.LocationMessage) {
+func broadcastLocation(data interface{}) {
 	clientsMutex.Lock()
 	defer clientsMutex.Unlock()
 
 	for client := range clients {
-		err := client.WriteJSON(msg)
+		err := client.WriteJSON(data)
 		if err != nil {
-			fmt.Println("WriteJSON error:", err)
+			log.Println("WriteJSON error:", err)
 			client.Close()
 			delete(clients, client)
 		}
@@ -60,12 +61,11 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("Client connected:", conn.RemoteAddr())
 
-	db, err := sql.Open("postgres", "user=postgres password=152.69.222.199 dbname=postgres sslmode=disable")
+	db, err := config.DB.DB()
 	if err != nil {
-		log.Println("DB connection error:", err)
+		log.Println("Gagal ambil koneksi dari GORM:", err)
 		return
 	}
-	defer db.Close()
 
 	for {
 		var msg models.LocationMessage
@@ -98,33 +98,25 @@ func WSHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		var portGeofence *utils.Geofence
-		for _, g := range allGeofences {
-			if g.Name == "Pelabuhan Tanjung Priok" {
-				portGeofence = g
-				break
-			}
-		}
-
 		//kalau bisatidak di perlukan karna adanya filter dri utils by port
 
-		inPelabuhan := false
-		if portGeofence != nil {
-			inPelabuhan = utils.IsInsideGeofence(msg.Lat, msg.Lng, portGeofence)
-		}
+		// inPelabuhan := false
+		// if portGeofence != nil {
+		// 	inPelabuhan = utils.IsInsideGeofence(msg.Lat, msg.Lng, portGeofence)
+		// }
 
-		if !inPelabuhan {
-			statesMutex.Lock()
-			states[msg.UserID] = &driverState{}
-			statesMutex.Unlock()
+		// if !inPelabuhan {
+		// 	statesMutex.Lock()
+		// 	states[msg.UserID] = &driverState{}
+		// 	statesMutex.Unlock()
 
-			msg.Alert = "Driver berada di luar area pelabuhan"
-			msg.BookingStatus = ""
-			msg.ArrivalStatus = "outside_port"
-			msg.EnteredAt = time.Time{}
-			broadcastLocation(msg)
-			continue
-		}
+		// 	msg.Alert = "Driver berada di luar area pelabuhan"
+		// 	msg.BookingStatus = ""
+		// 	msg.ArrivalStatus = "outside_port"
+		// 	msg.EnteredAt = time.Time{}
+		// 	broadcastLocation(msg)
+		// 	continue
+		// }
 
 		statesMutex.Lock()
 		ds.InPort = true

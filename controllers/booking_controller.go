@@ -54,22 +54,21 @@ func CreateBooking(c *gin.Context) {
 		return
 	}
 
-	var booking models.Booking
-	if err := c.ShouldBindJSON(&booking); err != nil {
+	var book models.Booking
+	if err := c.ShouldBindJSON(&book); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	booking.UserID = userID
-	booking.CreatedAt = time.Now()
-	booking.UpdatedAt = time.Now()
-
-	if err := config.DB.Create(&booking).Error; err != nil {
+	book.UserID = userID
+	book.CreatedAt = time.Now()
+	book.UpdatedAt = time.Now()
+	if err := config.DB.Create(&book).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, booking)
+	c.JSON(http.StatusOK, book)
 }
 
 func GetUserBookings(c *gin.Context) {
@@ -141,6 +140,8 @@ func UpdateBooking(c *gin.Context) {
 	booking.ContainerStatus = input.ContainerStatus
 	booking.ISOCode = input.ISOCode
 	booking.UpdatedAt = time.Now()
+	booking.StartTime = input.StartTime
+	booking.EndTime = input.EndTime
 
 	if err := config.DB.Save(&booking).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
