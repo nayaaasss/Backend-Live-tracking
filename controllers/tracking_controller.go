@@ -17,7 +17,6 @@ func UpdateDriverLocation(c *gin.Context) {
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
-
 	}
 
 	log.Printf("[%s] %s @%s → Lat: %.6f, Lng: %.6f",
@@ -30,21 +29,19 @@ func UpdateDriverLocation(c *gin.Context) {
 
 	db := config.DB
 	geofence, isInside := utils.ValidateGeofence(input.Lat, input.Lng)
-	if input.BookingID == 0 && !isInside {
-		c.Status(http.StatusNoContent)
-	}
+	now := time.Now()
 
-	//jika driver keluar ara maka statusnya tidak aktif
 	if !isInside {
-		// Cek apakah ada data aktif dari user ini
 		var existing models.DriverTracking
 		tx := db.Where("user_id = ? AND is_active = ?", input.UserID, true).First(&existing)
 		if tx.RowsAffected > 0 {
 			db.Model(&existing).Updates(map[string]interface{}{
-				"is_active": false,
+				"is_active":     false,
+				"gate_out_time": now,
+				"updated_at":    now,
 			})
+			log.Printf("Driver %s GATE OUT at %s", input.UserID, now.Format("2006-01-02 15:04:05"))
 		}
-
 		c.Status(http.StatusNoContent)
 		return
 	}
@@ -54,30 +51,35 @@ func UpdateDriverLocation(c *gin.Context) {
 
 	var booking models.Booking
 	err := db.Where("id = ?", input.BookingID).First(&booking).Error
-
-	// untuk status fit dan strange
 	if err != nil {
 		input.Status = "strange"
 		input.ArrivalStatus = "unknown"
 	} else {
 		input.Status = "fit"
-
-		if booking.TerminalName == input.GeofenceName {
-			input.ArrivalStatus = "match"
-		} else if booking.PortName == input.GeofenceName {
-			input.ArrivalStatus = "in port"
-		} else {
-			input.ArrivalStatus = "not match"
-		}
 	}
 
 	var existing models.DriverTracking
 	tx := db.Where("user_id = ?", input.UserID).First(&existing)
 
 	if tx.RowsAffected > 0 {
-		//untuk update posisi location driverke DB
+		if existing.GateInTime.IsZero() {
+			input.GateInTime = now
+			// status kedatangan
+			input.ArrivalStatus = utils.GetArrivalStatus(input.ShiftInPlan, now)
+			log.Printf("Driver %s GATE IN at %s (Shift %s, %s)",
+				input.UserID,
+				now.Format("2006-01-02 15:04:05"),
+				input.ShiftInPlan,
+				input.ArrivalStatus,
+			)
+		} else {
+			input.GateInTime = existing.GateInTime
+			input.ArrivalStatus = existing.ArrivalStatus
+		}
+
+		// Update posisi hanya jika berpindah lebih dari 1 meter
 		distance := utils.CalculateDistance(existing.Lat, existing.Lng, input.Lat, input.Lng)
-		if distance > 1 { // lebih dari 1 meter update posisi
+		if distance > 1 {
 			db.Model(&existing).Updates(map[string]interface{}{
 				"lat":              input.Lat,
 				"lng":              input.Lng,
@@ -91,15 +93,24 @@ func UpdateDriverLocation(c *gin.Context) {
 				"iso_code":         input.ISOCode,
 				"container_status": input.ContainerStatus,
 				"shift_in_plan":    input.ShiftInPlan,
+				"gate_in_time":     input.GateInTime,
 				"booking_id":       input.BookingID,
-				"created_at":       time.Now(),
-				"updated_at":       time.Now(),
+				"updated_at":       now,
 			})
 		}
 	} else {
-		// Belum ada Insert baru
-		input.ID = 0
+		// Driver baru melakukan insert
+		input.GateInTime = now
+		input.ArrivalStatus = utils.GetArrivalStatus(input.ShiftInPlan, now)
+		input.CreatedAt = now
+		input.UpdatedAt = now
 		db.Create(&input)
+		log.Printf("Driver %s NEW ENTRY - GATE IN at %s (Shift %s, %s)",
+			input.UserID,
+			now.Format("2006-01-02 15:04:05"),
+			input.ShiftInPlan,
+			input.ArrivalStatus,
+		)
 	}
 
 	broadcastLocation(input)
@@ -108,6 +119,8 @@ func UpdateDriverLocation(c *gin.Context) {
 		"status":         input.Status,
 		"is_active":      input.IsActive,
 		"arrival_status": input.ArrivalStatus,
+		"gate_in_time":   input.GateInTime,
+		"gate_out_time":  input.GateOutTime,
 		"message":        fmt.Sprintf("Driver %s berada di area %s", input.Name, input.GeofenceName),
 	})
 }

@@ -13,8 +13,8 @@ type DriverTracking struct {
 	ISOCode         string    `json:"iso_code"`
 	GeofenceName    string    `json:"geofence_name"`
 	TerminalName    string    `json:"terminal_name"`
-	GateInTime      string    `json:"gate_in_time"`
-	GateOutTime     string    `json:"gate_out_time"`
+	GateInTime      time.Time `json:"gate_in_time"`
+	GateOutTime     time.Time `json:"gate_out_time"`
 	PortName        string    `json:"port_name"`
 	ContainerStatus string    `json:"container_status"`
 	ShiftInPlan     string    `json:"shift_in_plan"`
