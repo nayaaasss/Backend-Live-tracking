@@ -130,7 +130,7 @@ func GetAllGeofences(db *sql.DB) ([]*Geofence, error) {
 
 func ValidateGeofence(lat, lng float64) (*Geofence, bool) {
 	for _, g := range geofences {
-		distance := CalculateDistance(lat, lng, g.Lat, g.Lng)
+		distance := CalculateDistance(lat, lng, g.Lat, g.Lng) // perlu diubah
 		if distance <= g.Radius {
 			return &g, true
 		}

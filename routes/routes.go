@@ -32,6 +32,10 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 		controllers.WSHandler(c.Writer, c.Request)
 	})
 
+	r.GET("/geofences", func(c *gin.Context) {
+		controllers.FetchAllGeofences(c)
+	})
+
 	auth := r.Group("/api")
 	auth.Use(middleware.AuthMiddleware())
 	{
@@ -73,6 +77,10 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 
 		auth.POST("/location/update", func(c *gin.Context) {
 			controllers.UpdateDriverLocation(c)
+		})
+
+		auth.GET("/location/active", func(c *gin.Context) {
+			controllers.GetActiveDriverLocations(c)
 		})
 
 	}

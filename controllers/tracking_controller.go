@@ -49,6 +49,8 @@ func UpdateDriverLocation(c *gin.Context) {
 	input.GeofenceName = geofence.Name
 	input.IsActive = true
 
+	//TODO:untuk status booking (menambahkan kondisi dimana ada yang namanya status other activity)
+	//TODO: status berdasarkan booking yg sedang aktif
 	var booking models.Booking
 	err := db.Where("id = ?", input.BookingID).First(&booking).Error
 	if err != nil {
@@ -96,6 +98,7 @@ func UpdateDriverLocation(c *gin.Context) {
 				"gate_in_time":     input.GateInTime,
 				"booking_id":       input.BookingID,
 				"updated_at":       now,
+				"created_at":       now,
 			})
 		}
 	} else {
@@ -122,5 +125,15 @@ func UpdateDriverLocation(c *gin.Context) {
 		"gate_in_time":   input.GateInTime,
 		"gate_out_time":  input.GateOutTime,
 		"message":        fmt.Sprintf("Driver %s berada di area %s", input.Name, input.GeofenceName),
+	})
+}
+
+func GetActiveDriverLocations(c *gin.Context) {
+	db := config.DB
+	var trackings []models.DriverTracking
+	db.Find(&trackings)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": trackings,
 	})
 }

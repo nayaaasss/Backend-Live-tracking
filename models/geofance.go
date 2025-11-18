@@ -1,21 +1,10 @@
 package models
 
-import (
-	"time"
-)
+import "encoding/json"
 
 type Geofence struct {
-	ID        int        `json:"id" gorm:"primaryKey"`
-	Name      string     `json:"name"`
-	Lat       float64    `json:"lat"`
-	Lng       float64    `json:"lng"`
-	Radius    float64    `json:"radius"`
-	PortID    int        `json:"port_id"`
-	Slot      string     `json:"slot"`
-	StartTime *time.Time `json:"start_time"`
-	EndTime   *time.Time `json:"end_time"`
-	LatMin    float64    `json:"lat_min"`
-	LatMax    float64    `json:"lat_max"`
-	LngMin    float64    `json:"lng_min"`
-	LngMax    float64    `json:"lng_max"`
+	ID       uint            `json:"id"`
+	Name     string          `json:"name"`
+	Category string          `json:"category"`
+	GeoJSON  json.RawMessage `json:"geojson" gorm:"column:geojson;type:jsonb"`
 }

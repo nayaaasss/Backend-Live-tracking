@@ -30,7 +30,12 @@ func ConnectDB() (*gorm.DB, error) {
 	if err != nil {
 		log.Fatal("Gagal mengatur search_path:", err)
 	}
-	db.AutoMigrate(&models.User{}, &models.Driver{}, &models.Booking{})
+	db.AutoMigrate(
+		&models.User{},
+		&models.Booking{},
+		&models.DriverTracking{},
+	)
+
 	fmt.Println("Using DSN:", dsn)
 
 	DB = db
