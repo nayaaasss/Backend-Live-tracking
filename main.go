@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"tracking-api/config"
+	"tracking-api/controllers"
 	"tracking-api/routes"
 
 	"github.com/gin-contrib/cors"
@@ -33,6 +34,7 @@ func main() {
 
 	// Register routes
 	routes.RegisterRoutes(r, db)
+	controllers.StartBroadcastActiveDrivers(1 * time.Second)
 
 	// Run server
 	log.Println("Server running on http://localhost:8080")

@@ -8,84 +8,71 @@ import (
 )
 
 type Geofence2 struct {
-	ID      uint        `json:"id"`
-	Name    string      `json:"name"`
-	Type    string      `json:"type"`
-	Lat     float64     `json:"lat,omitempty"`
-	Lng     float64     `json:"lng,omitempty"`
-	Radius  float64     `json:"radius,omitempty"`
-	Polygon [][]float64 `json:"polygon,omitempty"`
+	ID       uint        `json:"id"`
+	Name     string      `json:"name"`
+	Category string      `json:"type"`
+	Lat      float64     `json:"lat,omitempty"`
+	Lng      float64     `json:"lng,omitempty"`
+	Radius   float64     `json:"radius,omitempty"`
+	Polygon  [][]float64 `json:"polygon,omitempty"`
 }
 
-func EnsurePolygonClosed(ring [][]float64) [][]float64 {
-	if len(ring) == 0 {
-		return ring
-	}
-	first := ring[0]
-	last := ring[len(ring)-1]
-	if first[0] != last[0] || first[1] != last[1] {
-		ring = append(ring, first)
-	}
-	return ring
-}
-
-func parseGeoJSON(raw json.RawMessage) ([][]float64, float64, float64, float64) {
+func parseGeoJSONFast(raw json.RawMessage) ([][]float64, float64, float64, float64) {
 	polygon := [][]float64{}
 	var lat, lng, radius float64
 
-	fmt.Println(string(raw))
-
 	if len(raw) == 0 || string(raw) == "null" {
-		fmt.Println("GeoJSON is empty")
 		return polygon, lat, lng, radius
 	}
 
-	var geo struct {
-		Type       string                 `json:"type"`
-		Properties map[string]interface{} `json:"properties,omitempty"`
-		Geometry   struct {
-			Type        string          `json:"type"`
-			Coordinates json.RawMessage `json:"coordinates"`
-		} `json:"geometry"`
-	}
-
-	if err := json.Unmarshal(raw, &geo); err != nil {
+	var obj map[string]interface{}
+	if err := json.Unmarshal(raw, &obj); err != nil {
 		fmt.Println("JSON Unmarshal error:", err)
 		return polygon, lat, lng, radius
 	}
 
-	fmt.Println("GeoJSON Parsed Type:", geo.Geometry.Type)
-
-	if geo.Properties != nil {
-		if v, ok := geo.Properties["radius"].(float64); ok {
-			radius = v
-		}
+	geom, ok := obj["geometry"].(map[string]interface{})
+	if !ok {
+		return polygon, lat, lng, radius
 	}
 
-	switch geo.Geometry.Type {
+	geomType, _ := geom["type"].(string)
+	coordsRaw := geom["coordinates"]
 
+	switch geomType {
 	case "Point":
-		var coords []float64
-		if err := json.Unmarshal(geo.Geometry.Coordinates, &coords); err == nil && len(coords) >= 2 {
-			lng = coords[0]
-			lat = coords[1]
+		if coords, ok := coordsRaw.([]interface{}); ok && len(coords) >= 2 {
+			lng, _ = coords[0].(float64)
+			lat, _ = coords[1].(float64)
 		}
 
 	case "Polygon":
-		var coords [][][]float64
-		if err := json.Unmarshal(geo.Geometry.Coordinates, &coords); err == nil && len(coords) > 0 {
-			ring := EnsurePolygonClosed(coords[0])
-
-			for _, p := range ring {
-				polygon = append(polygon, []float64{p[0], p[1]})
-			}
-
-			if len(ring) > 0 {
-				lng = ring[0][0]
-				lat = ring[0][1]
+		if coordsArr, ok := coordsRaw.([]interface{}); ok && len(coordsArr) > 0 {
+			if ring, ok := coordsArr[0].([]interface{}); ok {
+				for _, p := range ring {
+					if point, ok := p.([]interface{}); ok && len(point) >= 2 {
+						polygon = append(polygon, []float64{point[0].(float64), point[1].(float64)})
+					}
+				}
+				if len(polygon) > 0 {
+					first := polygon[0]
+					last := polygon[len(polygon)-1]
+					if first[0] != last[0] || first[1] != last[1] {
+						polygon = append(polygon, first)
+					}
+					lng = polygon[0][0]
+					lat = polygon[0][1]
+				}
 			}
 		}
 	}
+
+	if props, ok := obj["properties"].(map[string]interface{}); ok {
+		if r, ok := props["radius"].(float64); ok {
+			radius = r
+		}
+	}
+
 	return polygon, lat, lng, radius
 }
 
@@ -93,25 +80,97 @@ func GetAllGeofences2() ([]Geofence2, error) {
 	var rows []models.Geofence
 	if err := config.DB.Find(&rows).Error; err != nil {
 		return nil, err
-
 	}
 
 	var result []Geofence2
-
 	for _, r := range rows {
-
-		polygon, lat, lng, radius := parseGeoJSON(r.GeoJSON)
+		polygon, lat, lng, radius := parseGeoJSONFast(r.GeoJSON)
 
 		result = append(result, Geofence2{
-			ID:      r.ID,
-			Name:    r.Name,
-			Type:    r.Category,
-			Lat:     lat,
-			Lng:     lng,
-			Radius:  radius,
-			Polygon: polygon,
+			ID:       r.ID,
+			Name:     r.Name,
+			Category: r.Category,
+			Lat:      lat,
+			Lng:      lng,
+			Radius:   radius,
+			Polygon:  polygon,
 		})
 	}
 
 	return result, nil
+}
+
+func isPointInsidePolygon(lat, lng float64, poly [][]float64) bool {
+	inside := false
+	j := len(poly) - 1
+
+	for i := 0; i < len(poly); i++ {
+		lat1, lng1 := poly[i][1], poly[i][0]
+		lat2, lng2 := poly[j][1], poly[j][0]
+
+		intersect := ((lng1 > lng) != (lng2 > lng)) &&
+			(lat < (lat2-lat1)*(lng-lng1)/(lng2-lng1)+lat1)
+
+		if intersect {
+			inside = !inside
+		}
+
+		j = i
+	}
+
+	return inside
+}
+
+func ValidateGeofenceFromDatabase(lat, lng float64) (*Geofence2, bool) {
+	geofences, err := GetAllGeofences2()
+	if err != nil {
+		return nil, false
+	}
+
+	var foundPort, foundTerminal, foundDepo *Geofence2
+
+	for _, g := range geofences {
+		isInside := false
+
+		if g.Category == "terminal" {
+			if len(g.Polygon) > 0 {
+				isInside = isPointInsidePolygon(lat, lng, g.Polygon)
+			} else {
+				isInside = false
+			}
+
+		} else {
+			if len(g.Polygon) > 0 {
+				isInside = isPointInsidePolygon(lat, lng, g.Polygon)
+			} else if g.Radius > 0 {
+				d := CalculateDistance(lat, lng, g.Lat, g.Lng)
+				isInside = d <= g.Radius
+			}
+		}
+
+		if isInside {
+			gCopy := g
+
+			switch g.Category {
+			case "depo":
+				foundDepo = &gCopy
+			case "terminal":
+				foundTerminal = &gCopy
+			case "port":
+				foundPort = &gCopy
+			}
+		}
+	}
+
+	if foundDepo != nil {
+		return foundDepo, true
+	}
+	if foundTerminal != nil {
+		return foundTerminal, true
+	}
+	if foundPort != nil {
+		return foundPort, true
+	}
+
+	return nil, false
 }

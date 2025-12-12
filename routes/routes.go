@@ -71,10 +71,6 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 			controllers.DeleteBooking(c)
 		})
 
-		auth.GET("/geofence/socket", func(c *gin.Context) {
-			controllers.WSHandler(c.Writer, c.Request)
-		})
-
 		auth.POST("/location/update", func(c *gin.Context) {
 			controllers.UpdateDriverLocation(c)
 		})
@@ -85,7 +81,6 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 
 	}
 
-	// Admin only routes
 	admin := r.Group("/admin")
 	admin.Use(middleware.AuthMiddleware())
 	admin.Use(middleware.AdminOnly())

@@ -1,16 +1,15 @@
 package controllers
 
 import (
-	"database/sql"
 	"log"
 	"net/http"
 	"sync"
 	"time"
 	"tracking-api/config"
 	"tracking-api/models"
+	"tracking-api/package/utils"
 
 	"github.com/gorilla/websocket"
-	_ "github.com/lib/pq"
 )
 
 var upgrader = websocket.Upgrader{
@@ -22,110 +21,99 @@ var upgrader = websocket.Upgrader{
 var clients = make(map[*websocket.Conn]bool)
 var clientsMutex sync.Mutex
 
-type driverState struct {
-	FirstTerminal string
-	EnteredAt     time.Time
-	InPort        bool
-}
-
-var states = make(map[int]*driverState)
-var statesMutex sync.Mutex
-
-func broadcastLocation(data interface{}) {
-	clientsMutex.Lock()
-	defer clientsMutex.Unlock()
-
-	for client := range clients {
-		err := client.WriteJSON(data)
-		if err != nil {
-			log.Println("WriteJSON error:", err)
-			client.Close()
-			delete(clients, client)
-		}
-	}
-}
-
 func WSHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Upgrade error:", err)
 		return
 	}
-	defer conn.Close()
 
 	clientsMutex.Lock()
 	clients[conn] = true
 	clientsMutex.Unlock()
-
 	log.Println("Client connected:", conn.RemoteAddr())
 
-	db, err := config.DB.DB()
-	if err != nil {
-		log.Println("Gagal ambil koneksi dari GORM:", err)
+	go func(c *websocket.Conn) {
+		defer func() {
+			clientsMutex.Lock()
+			delete(clients, c)
+			clientsMutex.Unlock()
+			c.Close()
+			log.Println("Client disconnected:", c.RemoteAddr())
+		}()
+
+		for {
+			_, _, err := c.ReadMessage()
+			if err != nil {
+				log.Println("ReadMessage error (disconnecting):", err)
+				break
+			}
+		}
+	}(conn)
+}
+
+func broadcastAllActiveDrivers() {
+	var activeDrivers []models.DriverTracking
+
+	if err := config.DB.Where("is_active = ?", true).Find(&activeDrivers).Error; err != nil {
+		log.Println("Error fetch active drivers:", err)
 		return
 	}
 
-	for {
-		var msg models.LocationMessage
-		err := conn.ReadJSON(&msg)
-		if err != nil {
-			log.Println("ReadJSON error:", err)
-			break
+	var payload []map[string]interface{}
+
+	for _, d := range activeDrivers {
+		geofence, inside := utils.ValidateGeofenceFromDatabase(d.Lat, d.Lng)
+
+		item := map[string]interface{}{
+			"id":               d.ID,
+			"user_id":          d.UserID,
+			"name":             d.Name,
+			"lat":              d.Lat,
+			"lng":              d.Lng,
+			"is_active":        d.IsActive,
+			"status":           d.Status,
+			"arrival_status":   d.ArrivalStatus,
+			"terminal_name":    d.TerminalName,
+			"port_name":        d.PortName,
+			"container_no":     d.ContainerNo,
+			"iso_code":         d.ISOCode,
+			"container_status": d.ContainerStatus,
+			"shift_in_plan":    d.ShiftInPlan,
+			"gate_in_time":     d.GateInTime,
+			"gate_out_time":    d.GateOutTime,
+			"booking_id":       d.BookingID,
+			"updated_at":       d.UpdatedAt,
 		}
 
-		if msg.Slot == "" || msg.PortID == 0 {
-			msg.Alert = "Slot atau Port ID belum dikirim dari client"
-			msg.ArrivalStatus = "unknown"
-			msg.BookingStatus = "strange"
-			broadcastLocation(msg)
-			continue
+		if inside {
+			item["current_geofence"] = geofence.Name
+			item["geofence_type"] = geofence.Category
+		} else {
+			item["current_geofence"] = nil
+			item["geofence_type"] = nil
 		}
 
-		statesMutex.Lock()
-		if _, ok := states[msg.UserID]; !ok {
-			states[msg.UserID] = &driverState{}
-		}
-		ds := states[msg.UserID]
-		statesMutex.Unlock()
+		payload = append(payload, item)
+	}
 
-		statesMutex.Lock()
-		ds.InPort = true
-		statesMutex.Unlock()
+	clientsMutex.Lock()
+	defer clientsMutex.Unlock()
 
-		var booking models.Booking
-		err = db.QueryRow(`
-			SELECT terminal_name
-			FROM bookings
-			WHERE user_id = $1
-			ORDER BY created_at DESC
-			LIMIT 1`,
-			msg.UserID).Scan(&booking.TerminalName)
-
-		if err == sql.ErrNoRows {
-			msg.BookingStatus = "strange"
-			msg.ArrivalStatus = "unknown"
-			msg.Destination = "-"
-			msg.Alert = "Masuk ke terminal tanpa booking"
-			broadcastLocation(msg)
-			continue
-		} else if err != nil {
-			log.Println("Error cek Booking:", err)
-			msg.BookingStatus = "gagal memeriksa data"
-			msg.ArrivalStatus = "gagal memeriksa data"
-			msg.Destination = "gagal memeriksa data"
-			broadcastLocation(msg)
-			continue
+	for client := range clients {
+		if err := client.WriteJSON(payload); err != nil {
+			log.Println("Broadcast error:", err)
+			client.Close()
+			delete(clients, client)
 		}
 	}
 }
 
-var mu sync.Mutex
-
-func BroadcastDriverTracking(data interface{}) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	for conn := range clients {
-		conn.WriteJSON(data)
-	}
+func StartBroadcastActiveDrivers(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	go func() {
+		for range ticker.C {
+			broadcastAllActiveDrivers()
+		}
+	}()
 }

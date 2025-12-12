@@ -4,7 +4,7 @@ import "time"
 
 type DriverTracking struct {
 	ID              uint      `json:"id" gorm:"primaryKey"`
-	UserID          string    `json:"user_id"`
+	UserID          uint      `json:"user_id"`
 	BookingID       uint      `json:"booking_id"`
 	Name            string    `json:"name"`
 	Lat             float64   `json:"lat"`
@@ -18,6 +18,7 @@ type DriverTracking struct {
 	PortName        string    `json:"port_name"`
 	ContainerStatus string    `json:"container_status"`
 	ShiftInPlan     string    `json:"shift_in_plan"`
+	StartTime       time.Time `json:"start_time"`
 	Status          string    `json:"status"`
 	ArrivalStatus   string    `json:"arrival_status"`
 	IsActive        bool      `json:"is_active"`
@@ -26,5 +27,5 @@ type DriverTracking struct {
 }
 
 func (DriverTracking) TableName() string {
-	return "tracking_driver"
+	return "geofencing.tracking_driver"
 }
