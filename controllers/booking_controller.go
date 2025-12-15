@@ -61,6 +61,7 @@ func CreateBooking(c *gin.Context) {
 	}
 
 	book.UserID = userID
+	book.IsActive = true
 	book.CreatedAt = time.Now()
 	book.UpdatedAt = time.Now()
 	if err := config.DB.Create(&book).Error; err != nil {

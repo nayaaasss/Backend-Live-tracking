@@ -15,6 +15,7 @@ type Booking struct {
 	ContainerSize   string    `json:"container_size"`
 	ContainerStatus string    `json:"container_status"`
 	ISOCode         string    `json:"iso_code"`
+	IsActive        bool      `json:"is_active"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	StartTime       time.Time `json:"start_time"`
