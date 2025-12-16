@@ -21,3 +21,7 @@ type Booking struct {
 	StartTime       time.Time `json:"start_time"`
 	EndTime         time.Time `json:"end_time"`
 }
+
+func (Booking) TableName() string {
+	return "geofencing.bookings"
+}

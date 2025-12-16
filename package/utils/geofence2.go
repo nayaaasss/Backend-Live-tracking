@@ -105,19 +105,17 @@ func isPointInsidePolygon(lat, lng float64, poly [][]float64) bool {
 	j := len(poly) - 1
 
 	for i := 0; i < len(poly); i++ {
-		lat1, lng1 := poly[i][1], poly[i][0]
-		lat2, lng2 := poly[j][1], poly[j][0]
+		xi, yi := poly[i][0], poly[i][1]
+		xj, yj := poly[j][0], poly[j][1]
 
-		intersect := ((lng1 > lng) != (lng2 > lng)) &&
-			(lat < (lat2-lat1)*(lng-lng1)/(lng2-lng1)+lat1)
+		intersect := ((yi > lat) != (yj > lat)) &&
+			(lng < (xj-xi)*(lat-yi)/(yj-yi)+xi)
 
 		if intersect {
 			inside = !inside
 		}
-
 		j = i
 	}
-
 	return inside
 }
 
@@ -173,4 +171,5 @@ func ValidateGeofenceFromDatabase(lat, lng float64) (*Geofence2, bool) {
 	}
 
 	return nil, false
+
 }

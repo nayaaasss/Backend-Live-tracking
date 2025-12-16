@@ -30,7 +30,7 @@ func UpdateDriverLocation(c *gin.Context) {
 
 	input.Name = utils.GetNameFromEmail(user.Email)
 
-	geofence, isInside := utils.ValidateGeofenceFromDatabase(input.Lat, input.Lng)
+	zone, isInside := utils.ValidateZoneFromDatabase(input.Lat, input.Lng)
 
 	if !isInside {
 		var existing models.DriverTracking
@@ -55,7 +55,7 @@ func UpdateDriverLocation(c *gin.Context) {
 
 	} else {
 
-		input.GeofenceName = geofence.Name
+		input.GeofenceName = zone.Name
 		input.IsActive = true
 
 		var booking models.Booking
@@ -65,7 +65,7 @@ func UpdateDriverLocation(c *gin.Context) {
 		).Order("created_at DESC").
 			First(&booking).Error == nil
 
-		switch geofence.Category {
+		switch zone.Category {
 		case "port":
 			if !hasBooking {
 				input.Status = "strange"
@@ -85,7 +85,7 @@ func UpdateDriverLocation(c *gin.Context) {
 			if !hasBooking {
 				input.Status = "strange"
 
-			} else if geofence.Name != booking.TerminalName {
+			} else if zone.Name != booking.TerminalName {
 				input.Status = "not match"
 
 			} else {

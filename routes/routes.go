@@ -36,6 +36,10 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 		controllers.FetchAllGeofences(c)
 	})
 
+	r.GET("/zones/custom", func(c *gin.Context) {
+		controllers.GetCustomZones(c)
+	})
+
 	auth := r.Group("/api")
 	auth.Use(middleware.AuthMiddleware())
 	{

@@ -63,7 +63,7 @@ func broadcastAllActiveDrivers() {
 	var payload []map[string]interface{}
 
 	for _, d := range activeDrivers {
-		geofence, inside := utils.ValidateGeofenceFromDatabase(d.Lat, d.Lng)
+		zone, inside := utils.ValidateZoneFromDatabase(d.Lat, d.Lng)
 
 		item := map[string]interface{}{
 			"id":               d.ID,
@@ -87,8 +87,8 @@ func broadcastAllActiveDrivers() {
 		}
 
 		if inside {
-			item["current_geofence"] = geofence.Name
-			item["geofence_type"] = geofence.Category
+			item["current_geofence"] = zone.Name
+			item["geofence_type"] = zone.Category
 		} else {
 			item["current_geofence"] = nil
 			item["geofence_type"] = nil

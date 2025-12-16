@@ -9,3 +9,7 @@ type User struct {
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
 }
+
+func (User) TableName() string {
+	return "geofencing.users"
+}
