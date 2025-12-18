@@ -10,7 +10,6 @@ import (
 )
 
 func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
-	// Health Check Endpoint
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "API is running",
@@ -39,6 +38,9 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 	r.GET("/zones/custom", func(c *gin.Context) {
 		controllers.GetCustomZones(c)
 	})
+
+	r.POST("/gate/in", controllers.GateInTime)
+	r.POST("/gate/out", controllers.GateOut)
 
 	auth := r.Group("/api")
 	auth.Use(middleware.AuthMiddleware())
