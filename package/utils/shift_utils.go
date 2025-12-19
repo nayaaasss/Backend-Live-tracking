@@ -16,5 +16,5 @@ func GetArrivalStatusByGateIn(gateIn, start, end time.Time) string {
 		return "late"
 	}
 
-	return "ontime"
+	return "on time"
 }

@@ -34,23 +34,9 @@ func GateOut(c *gin.Context) {
 		return
 	}
 
-	if tracking.BookingID != 0 {
-		db.Model(&models.Booking{}).
-			Where("id = ?", tracking.BookingID).
-			Update("is_active", false)
-	}
-
 	if !tracking.GateOutTime.IsZero() {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Gate out already exist"})
 		return
-	}
-
-	if tracking.BookingID != 0 {
-		db.Model(&models.Booking{}).
-			Where("id = ?", tracking.BookingID).
-			Updates(map[string]interface{}{
-				"is_active": false,
-			})
 	}
 
 	db.Model(&tracking).Updates(map[string]interface{}{
@@ -58,6 +44,8 @@ func GateOut(c *gin.Context) {
 		"gate_out_time": now,
 		"updated_at":    now,
 	})
+
+	broadcastAllActiveDrivers()
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":       "gate out succes",

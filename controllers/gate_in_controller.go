@@ -24,10 +24,10 @@ func GateInTime(c *gin.Context) {
 	}
 
 	db := config.DB
-	now := time.Now()
+	gateInTime := time.Now()
 
 	var booking models.Booking
-	if err := db.First(&booking, "id = ?", input.BookingID).Error; err != nil {
+	if err := db.First(&booking, "booking_id = ? ", input.BookingID).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Booking not found"})
 		return
 	}
@@ -47,21 +47,24 @@ func GateInTime(c *gin.Context) {
 	}
 
 	arrivalStatus := utils.GetArrivalStatusByGateIn(
-		input.GateInTime,
+		gateInTime,
 		booking.StartTime,
 		booking.EndTime,
 	)
 
 	db.Model(&tracking).Updates(map[string]interface{}{
-		"gate_in_time":   input.GateInTime,
+		"gate_in_time":   gateInTime,
 		"arrival_status": arrivalStatus,
+		"updated_at":     gateInTime,
 	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":        "gate in succes",
-		"gate_in_time":   now,
+		"gate_in_time":   gateInTime,
 		"arrival_status": arrivalStatus,
 	})
+
+	broadcastAllActiveDrivers()
 
 	fmt.Println("USER ID:", input.UserID)
 	fmt.Println("BOOKING ID:", input.BookingID)
