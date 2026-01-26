@@ -83,7 +83,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 
 		auth.GET("/location/active", func(c *gin.Context) {
 			controllers.GetActiveDriverLocations(c)
-		})
+		}) //internal
 
 	}
 

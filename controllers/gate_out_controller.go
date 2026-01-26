@@ -12,9 +12,7 @@ import (
 func GateOut(c *gin.Context) {
 
 	var input struct {
-		UserID      uint      `json:"user_id"`
-		BookingID   uint      `json:"booking_id"`
-		GateOutTime time.Time `json:"gate_out_time"`
+		UserID uint `json:"user_id"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -23,32 +21,31 @@ func GateOut(c *gin.Context) {
 	}
 
 	db := config.DB
-	now := time.Now()
 
 	var tracking models.DriverTracking
-	if err := db.Where(
-		"user_id = ? AND is_active = true",
-		input.UserID,
-	).First(&tracking).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Active tracking not found"})
+	if err := db.Where("user_id = ?", input.UserID).
+		Order("created_at DESC").
+		First(&tracking).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tracking not found"})
 		return
 	}
 
-	if !tracking.GateOutTime.IsZero() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Gate out already exist"})
+	if tracking.GateOutTime.IsZero() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Gate out not detected yet (driver still inside terminal)",
+		})
 		return
 	}
 
 	db.Model(&tracking).Updates(map[string]interface{}{
-		"is_active":     false,
-		"gate_out_time": now,
-		"updated_at":    now,
+		"is_active":  false,
+		"updated_at": time.Now(),
 	})
 
 	broadcastAllActiveDrivers()
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":       "gate out succes",
-		"gate_out_time": now,
+		"message":       "gate out confirmed",
+		"gate_out_time": tracking.GateOutTime,
 	})
 }

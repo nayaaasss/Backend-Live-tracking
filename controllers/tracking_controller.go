@@ -32,22 +32,29 @@ func UpdateDriverLocation(c *gin.Context) {
 	zone, isInside := utils.ValidateZoneFromDatabase(input.Lat, input.Lng)
 
 	if !isInside {
-		db.Model(&models.DriverTracking{}).
-			Where("user_id = ? AND is_active = true", input.UserID).
-			Updates(map[string]interface{}{
-				"is_active":  false,
-				"updated_at": now,
+		var existing models.DriverTracking
+		tx := db.Where("user_id = ? AND is_active = true", input.UserID).
+			First(&existing)
+
+		if tx.RowsAffected > 0 && !existing.GateInTime.IsZero() {
+
+			db.Model(&existing).Updates(map[string]interface{}{
+				"is_active":     false,
+				"gate_out_time": now,
+				"updated_at":    now,
 			})
 
-		db.Model(&models.Booking{}).
-			Where("user_id = ? AND is_active = true", input.UserID).
-			Updates(map[string]interface{}{
-				"is_active":  false,
-				"updated_at": now,
-			})
+			db.Model(&models.Booking{}).
+				Where("user_id = ? AND is_active = true", input.UserID).
+				Updates(map[string]interface{}{
+					"is_active":  false,
+					"updated_at": now,
+				})
+		}
 
 		c.Status(http.StatusNoContent)
 		return
+
 	} else {
 		input.GeofenceName = zone.Name
 		input.IsActive = true
@@ -69,18 +76,6 @@ func UpdateDriverLocation(c *gin.Context) {
 			} else {
 				input.Status = "fit"
 				utils.ApplyBookingData(&input, booking)
-
-				compareTime := time.Now()
-
-				if !tracking.GateInTime.IsZero() {
-					compareTime = tracking.GateInTime
-				}
-
-				input.ArrivalStatus = utils.GetArrivalStatusByGateIn(
-					compareTime,
-					booking.StartTime,
-					booking.EndTime,
-				)
 			}
 
 		case "terminal":
@@ -99,11 +94,27 @@ func UpdateDriverLocation(c *gin.Context) {
 			} else {
 				input.Status = "other activity"
 			}
-
 		}
 
 		var existing models.DriverTracking
 		tx := db.Where("user_id = ? AND is_active = true", input.UserID).First(&existing)
+
+		if tx.RowsAffected > 0 {
+			input.GateInTime = existing.GateInTime
+			input.ArrivalStatus = existing.ArrivalStatus
+		} else {
+			input.GateInTime = now
+
+			if hasBooking {
+				input.ArrivalStatus = utils.GetArrivalStatusByGateIn(
+					now,
+					booking.StartTime,
+					booking.EndTime,
+				)
+			} else {
+				input.ArrivalStatus = "unknown"
+			}
+		}
 
 		if tx.RowsAffected > 0 {
 			distance := utils.CalculateDistance(existing.Lat, existing.Lng, input.Lat, input.Lng)

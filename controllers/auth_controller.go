@@ -84,6 +84,7 @@ func Login(c *gin.Context, db *gorm.DB) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
+		"user_id": user.ID,
 		"message": "login success",
 		"token":   tokenString,
 	})
@@ -131,5 +132,6 @@ func LoginAdmin(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "login success",
 		"token":   tokenString,
+		"id":      user.ID,
 	})
 }
