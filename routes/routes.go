@@ -39,6 +39,14 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 		controllers.GetCustomZones(c)
 	})
 
+	r.POST("/location/update", func(c *gin.Context) {
+		controllers.UpdateDriverLocation(c)
+	})
+
+	r.GET("/location/active", func(c *gin.Context) {
+		controllers.GetActiveDriverLocations(c)
+	})
+
 	r.POST("/gate/in", controllers.GateInTime)
 	r.POST("/gate/out", controllers.GateOut)
 
@@ -76,14 +84,6 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
 		auth.DELETE("/booking/:id", func(c *gin.Context) {
 			controllers.DeleteBooking(c)
 		})
-
-		auth.POST("/location/update", func(c *gin.Context) {
-			controllers.UpdateDriverLocation(c)
-		})
-
-		auth.GET("/location/active", func(c *gin.Context) {
-			controllers.GetActiveDriverLocations(c)
-		}) //internal
 
 	}
 

@@ -71,7 +71,7 @@ func UpdateDriverLocation(c *gin.Context) {
 		switch zone.Category {
 		case "port":
 			if !hasBooking {
-				input.Status = "stranger"
+				input.Status = "strange"
 				input.ArrivalStatus = "unknown"
 			} else {
 				input.Status = "fit"
@@ -80,7 +80,7 @@ func UpdateDriverLocation(c *gin.Context) {
 
 		case "terminal":
 			if !hasBooking {
-				input.Status = "stranger"
+				input.Status = "strange"
 			} else if zone.Name != booking.TerminalName {
 				input.Status = "not match"
 			} else {
